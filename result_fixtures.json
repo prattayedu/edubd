@@ -1,134 +1,86 @@
-[
-    {
-        "model": "result.result",
-        "pk": 1,
-        "fields": {
-            "student": 1,
-            "semester": 1,
-            "subject": 1,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 2,
-        "fields": {
-            "student": 1,
-            "semester": 1,
-            "subject": 2,
-            "theory_marks": 35,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 3,
-        "fields": {
-            "student": 1,
-            "semester": 1,
-            "subject": 3,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 4,
-        "fields": {
-            "student": 1,
-            "semester": 1,
-            "subject": 4,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 5,
-        "fields": {
-            "student": 1,
-            "semester": 1,
-            "subject": 5,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 6,
-        "fields": {
-            "student": 1,
-            "semester": 1,
-            "subject": 6,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 7,
-        "fields": {
-            "student": 1,
-            "semester": 2,
-            "subject": 7,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 8,
-        "fields": {
-            "student": 1,
-            "semester": 2,
-            "subject": 15,
-            "theory_marks": 35,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 9,
-        "fields": {
-            "student": 1,
-            "semester": 2,
-            "subject": 3,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 10,
-        "fields": {
-            "student": 1,
-            "semester": 2,
-            "subject": 4,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 11,
-        "fields": {
-            "student": 1,
-            "semester": 2,
-            "subject": 8,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    },
-    {
-        "model": "result.result",
-        "pk": 12,
-        "fields": {
-            "student": 1,
-            "semester": 2,
-            "subject": 9,
-            "theory_marks": 45,
-            "practical_marks": 40
-        }
-    }
-]
+import random
+from django.core.management.base import BaseCommand
+from result.models import Result, Student, Semester, Subject
+
+
+class Command(BaseCommand):
+    help = "Generate random exam results for all students and semesters with GPA and Grade"
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--subjects", type=int, required=True,
+            help="Number of subjects to assign per semester"
+        )
+        parser.add_argument(
+            "--semesters", type=int, required=True,
+            help="Number of semesters to generate results for"
+        )
+
+    def get_grade_gpa(self, total_marks):
+        """Return grade and GPA based on total marks."""
+        if total_marks >= 80:
+            return "A+", 5.0
+        elif total_marks >= 70:
+            return "A", 4.0
+        elif total_marks >= 60:
+            return "A-", 3.5
+        elif total_marks >= 50:
+            return "B", 3.0
+        elif total_marks >= 40:
+            return "C", 2.0
+        elif total_marks >= 33:
+            return "D", 1.0
+        else:
+            return "F", 0.0
+
+    def handle(self, *args, **options):
+        num_subjects = options["subjects"]
+        num_semesters = options["semesters"]
+
+        students = Student.objects.all()
+        semesters = Semester.objects.all()[:num_semesters]
+        subjects = list(Subject.objects.all()[:num_subjects])
+
+        if not students.exists():
+            self.stderr.write(self.style.ERROR("No students found."))
+            return
+        if len(semesters) < num_semesters:
+            self.stderr.write(self.style.ERROR("Not enough semesters in the database."))
+            return
+        if len(subjects) < num_subjects:
+            self.stderr.write(self.style.ERROR("Not enough subjects in the database."))
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        for student in students:
+            for semester in semesters:
+                for subject in subjects:
+                    theory_marks = random.randint(25, 50)  # Example: theory out of 50
+                    practical_marks = random.randint(20, 50)  # Example: practical out of 50
+                    total_marks = theory_marks + practical_marks
+                    grade, gpa = self.get_grade_gpa(total_marks)
+
+                    result, created = Result.objects.get_or_create(
+                        student=student,
+                        semester=semester,
+                        subject=subject,
+                        defaults={
+                            "theory_marks": theory_marks,
+                            "practical_marks": practical_marks,
+                            "grade": grade,
+                            "gpa": gpa,
+                        }
+                    )
+
+                    if created:
+                        created_count += 1
+                    else:
+                        skipped_count += 1
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"✅ Created {created_count} results, skipped {skipped_count} existing records."
+            )
+        )
